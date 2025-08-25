@@ -174,73 +174,77 @@ def parse_chapter_selection(selection_text):
 
 def main():
     print("🔎 Search manga in MangaDex")
-    title = input("Enter the manga title: ").strip()
-    results = search_manga(title)
-
-    if not results:
-        print("❌ No results found.")
-        return
-
-    print("\nResults found:")
-    for i, manga in enumerate(results, 1):
-        title_data = manga["attributes"]["title"]
-        title_str = title_data.get("es") or title_data.get("es-la") or title_data.get("en") or "Unknown title"
-        print(f"{i}. {title_str}")
-
-    selection = int(input("Select a manga number: ")) - 1
-    selected_manga = results[selection]
-    manga_id = selected_manga["id"]
-    manga_title = selected_manga["attributes"]["title"].get("en", "manga").replace(" ", "_")
-
-    available_langs = selected_manga["attributes"].get("availableTranslatedLanguages", [])
-    print(f"🌐 Available languages for this manga: {', '.join(available_langs)}")
-    selected_langs = input("Select languages separated by comma (e.g.: es,es-la,en): ").strip().split(",")
-    selected_langs = [lang.strip() for lang in selected_langs if lang.strip() in available_langs]
-
-    if not selected_langs:
-        print("❌ No valid languages selected.")
-        return
-
-    print("\n📅 Getting chapters in selected languages...")
-    all_chapters = get_all_chapters_by_languages(manga_id, selected_langs)
-    if not all_chapters:
-        print("❌ No chapters found.")
-        return
-
-    chapters = group_best_chapters(all_chapters, selected_langs)
-    chapter_map = {chapter["attributes"]["chapter"]: chapter for chapter in chapters if chapter["attributes"].get("chapter")}
-
-    print("\nAvailable chapters:")
-    for number in sorted(chapter_map.keys(), key=lambda x: float(x) if x.replace(".", "", 1).isdigit() else x):
-        title = chapter_map[number]["attributes"].get("title", "")
-        print(f"- Chapter {number}: {title}")
-
-    selection = input("Enter chapters (e.g.: 5,6,10-15) or 'all': ").strip().lower()
-    if selection == "all":
-        selected_numbers = list(chapter_map.keys())
-    else:
-        selected_numbers = parse_chapter_selection(selection)
-        selected_numbers = [num for num in selected_numbers if num in chapter_map]
-
-    if not selected_numbers:
-        print("❌ No valid chapters found in selection.")
-        return
-
-    for number in selected_numbers:
-        chapter = chapter_map[number]
-        chapter_id = chapter["id"]
-        chapter_title = chapter["attributes"].get("title", "No title")
-        print(f"\n⬇️  Downloading chapter {number}: {chapter_title}")
-        image_urls = get_image_urls(chapter_id)
-        folder = os.path.join("mangas", manga_title, f"chapter_{number}")
-        download_chapter_images(image_urls, folder)
-        print(f"✅ Chapter {number} saved in '{folder}'")
-
-        # Convert images to PDF
-        pdf_path = os.path.join("mangas", manga_title, f"chapter_{number}-{chapter_title}.pdf")
-        images_to_pdf(folder, pdf_path)
-
-    print("✅ Process completed.")
+    while True:
+        title = input("Enter the manga title (or type 'exit' to quit): ").strip()
+        if title.lower() == 'exit':
+            print("👋 Exiting script.")
+            return
+        results = search_manga(title)
+        if not results:
+            print("❌ No results found.")
+            continue
+        print("\nResults found:")
+        for i, manga in enumerate(results, 1):
+            title_data = manga["attributes"]["title"]
+            title_str = title_data.get("es") or title_data.get("es-la") or title_data.get("en") or "Unknown title"
+            print(f"{i}. {title_str}")
+        selection = input("Select a manga number (or type 'exit' to quit): ").strip()
+        if selection.lower() == 'exit':
+            print("👋 Exiting script.")
+            return
+        try:
+            selection = int(selection) - 1
+            selected_manga = results[selection]
+        except (ValueError, IndexError):
+            print("❌ Invalid selection.")
+            continue
+        manga_id = selected_manga["id"]
+        manga_title = selected_manga["attributes"]["title"].get("en", "manga").replace(" ", "_")
+        available_langs = selected_manga["attributes"].get("availableTranslatedLanguages", [])
+        print(f"🌐 Available languages for this manga: {', '.join(available_langs)}")
+        selected_langs = input("Select languages separated by comma (e.g.: es,es-la,en) or type 'exit' to quit: ").strip()
+        if selected_langs.lower() == 'exit':
+            print("👋 Exiting script.")
+            return
+        selected_langs = [lang.strip() for lang in selected_langs.split(',') if lang.strip() in available_langs]
+        if not selected_langs:
+            print("❌ No valid languages selected.")
+            continue
+        print("\n📅 Getting chapters in selected languages...")
+        all_chapters = get_all_chapters_by_languages(manga_id, selected_langs)
+        if not all_chapters:
+            print("❌ No chapters found.")
+            continue
+        chapters = group_best_chapters(all_chapters, selected_langs)
+        chapter_map = {chapter["attributes"]["chapter"]: chapter for chapter in chapters if chapter["attributes"].get("chapter")}
+        print("\nAvailable chapters:")
+        for number in sorted(chapter_map.keys(), key=lambda x: float(x) if x.replace(".", "", 1).isdigit() else x):
+            title = chapter_map[number]["attributes"].get("title", "")
+            print(f"- Chapter {number}: {title}")
+        selection = input("Enter chapters (e.g.: 5,6,10-15), 'all' for all, or 'exit' to quit: ").strip().lower()
+        if selection == 'exit':
+            print("👋 Exiting script.")
+            return
+        if selection == "all":
+            selected_numbers = list(chapter_map.keys())
+        else:
+            selected_numbers = parse_chapter_selection(selection)
+            selected_numbers = [num for num in selected_numbers if num in chapter_map]
+        if not selected_numbers:
+            print("❌ No valid chapters found in selection.")
+            continue
+        for number in selected_numbers:
+            chapter = chapter_map[number]
+            chapter_id = chapter["id"]
+            chapter_title = chapter["attributes"].get("title", "No title")
+            print(f"\n⬇️  Downloading chapter {number}: {chapter_title}")
+            image_urls = get_image_urls(chapter_id)
+            folder = os.path.join("mangas", manga_title, f"chapter_{number}")
+            download_chapter_images(image_urls, folder)
+            print(f"✅ Chapter {number} saved in '{folder}'")
+            pdf_path = os.path.join("mangas", manga_title, f"chapter_{number}-{chapter_title}.pdf")
+            images_to_pdf(folder, pdf_path)
+        print("✅ Process completed.")
 
 if __name__ == "__main__":
     main()
