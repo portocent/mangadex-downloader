@@ -88,7 +88,10 @@ def group_best_chapters(chapters, preferred_languages):
         chapter_map[chapter_number].append((lang, chapter))
 
     selected_chapters = []
-    for ch_number in sorted(chapter_map.keys(), key=lambda x: float(x) if x.replace('.', '', 1).isdigit() else float('inf')):
+    for ch_number in sorted(
+        [k for k in chapter_map.keys() if k is not None],
+        key=lambda x: float(x) if isinstance(x, str) and x.replace('.', '', 1).isdigit() else float('inf')
+    ):
         for pref_lang in preferred_languages:
             for lang, chapter in chapter_map[ch_number]:
                 if lang == pref_lang:
@@ -123,10 +126,19 @@ def download_image(url, folder_path, index):
     file_path = os.path.join(folder_path, f"{index:03d}.jpg")
     if os.path.exists(file_path):
         return
-    response = requests.get(url)
-    with open(file_path, "wb") as f:
-        f.write(response.content)
-    print(f"  📅 Page {index} downloaded.")
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            with open(file_path, "wb") as f:
+                f.write(response.content)
+            print(f"  📅 Page {index} downloaded.")
+            break
+        except (requests.exceptions.RequestException, requests.exceptions.ChunkedEncodingError) as e:
+            print(f"    ⚠️ Error downloading page {index} (attempt {attempt}): {e}")
+            if attempt == max_retries:
+                print(f"    ❌ Failed to download page {index} after {max_retries} attempts.")
 
 def download_chapter_images(image_urls, folder_path):
     os.makedirs(folder_path, exist_ok=True)
